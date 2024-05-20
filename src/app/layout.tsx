@@ -1,6 +1,9 @@
 import "~/styles/globals.css";
 
 import { Inter } from "next/font/google";
+import BrightnessToggleButton from "./_components/BrightnessToggleButton";
+import { cookies } from "next/headers";
+import { Toaster } from "~/components/ui/sonner";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -18,9 +21,25 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const cookieStore = cookies();
+  const theme = cookieStore.get("theme")?.value ?? "light";
+
   return (
     <html lang="en">
-      <body className={`font-sans ${inter.variable}`}>{children}</body>
+      <head></head>
+      <body
+        className={`font-sans ${inter.variable} ${theme === "dark" ? theme : ""}`}
+      >
+        <nav className="flex flex-row justify-between bg-slate-300 px-5 py-4 dark:bg-slate-900">
+          <a href="/" className="my-auto text-xl font-extrabold">
+            {metadata.title}
+          </a>
+          <BrightnessToggleButton theme={theme} />
+        </nav>
+        {children}
+        <footer className="flex flex-col p-3"></footer>
+        <Toaster />
+      </body>
     </html>
   );
 }
