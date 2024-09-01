@@ -4,12 +4,13 @@
 import { sql } from "drizzle-orm";
 import {
   index,
-  pgEnum,
   pgTableCreator,
   serial,
   timestamp,
   varchar,
   date,
+  boolean,
+  integer,
 } from "drizzle-orm/pg-core";
 
 /**
@@ -55,22 +56,12 @@ export const event_dates = createTable(
   }),
 );
 
-export const enumDay = pgEnum("day", [
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday",
-  "Sunday",
-]);
-
 export const event_days = createTable(
   "event_day",
   {
     id: serial("id").primaryKey(),
     eventId: serial("event_id").references(() => events.id),
-    day: enumDay("day"),
+    day: varchar("day", { length: 256 }),
     startTime: varchar("start_time", { length: 256 }),
     endTime: varchar("end_time", { length: 256 }),
     createdAt: timestamp("created_at")
@@ -80,5 +71,65 @@ export const event_days = createTable(
   },
   (eventDay) => ({
     dayIndex: index("day_idx").on(eventDay.day),
+  }),
+);
+
+export const event_participants = createTable(
+  "event_participant",
+  {
+    id: serial("id").primaryKey(),
+    eventId: serial("event_id").references(() => events.id),
+    username: varchar("username", { length: 256 }),
+    password: varchar("password", { length: 256 }),
+    rememberMe: boolean("remember_me"),
+    createdAt: timestamp("created_at")
+      .default(sql`CURRENT_TIMESTAMP`)
+      .notNull(),
+    updatedAt: timestamp("updatedAt"),
+  },
+  (eventParticipant) => ({
+    participantIndex: index("participant_idx").on(eventParticipant.username),
+  }),
+);
+
+export const availability_slots = createTable(
+  "availability_slot",
+  {
+    id: serial("id").primaryKey(),
+    participantId: serial("participant_id").references(
+      () => event_participants.id,
+    ),
+    dateId: integer("date_id"),
+    dayId: integer("day_id"),
+    startTime: varchar("start_time", { length: 256 }),
+    endTime: varchar("end_time", { length: 256 }),
+    createdAt: timestamp("created_at")
+      .default(sql`CURRENT_TIMESTAMP`)
+      .notNull(),
+    updatedAt: timestamp("updatedAt"),
+  },
+  (availabilitySlot) => ({
+    slotIndex: index("slot_idx").on(
+      availabilitySlot.startTime,
+      availabilitySlot.endTime,
+    ),
+  }),
+);
+
+export const sessions = createTable(
+  "session",
+  {
+    id: serial("id").primaryKey().notNull(),
+    token: varchar("token", { length: 256 }).notNull(),
+    participantId: serial("participant_id")
+      .references(() => event_participants.id)
+      .notNull(),
+    createdAt: timestamp("created_at")
+      .default(sql`CURRENT_TIMESTAMP`)
+      .notNull(),
+    updatedAt: timestamp("updatedAt"),
+  },
+  (session) => ({
+    sessionIndex: index("session_idx").on(session.token),
   }),
 );

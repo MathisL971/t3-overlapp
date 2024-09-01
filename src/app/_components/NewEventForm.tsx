@@ -4,7 +4,6 @@ import { tz } from "moment-timezone";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { useRouter } from "next/navigation";
 
 import { Button } from "~/components/ui/button";
 import {
@@ -34,10 +33,11 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "~/components/ui/popover";
-import { toast } from "sonner";
 import { useEffect, useState } from "react";
+import { createEvent } from "../actions";
+import { toast } from "sonner";
 
-const NewEventFormSchema = z.object({
+export const NewEventFormSchema = z.object({
   title: z.string().min(3).max(50),
   timezone: z.string(),
   type: z.string(),
@@ -60,8 +60,6 @@ type NewEventFormProps = {
 };
 
 const NewEventForm = (props: NewEventFormProps) => {
-  const router = useRouter();
-
   const [submitting, setSubmitting] = useState(false);
 
   const form = useForm<z.infer<typeof NewEventFormSchema>>({
@@ -75,17 +73,10 @@ const NewEventForm = (props: NewEventFormProps) => {
     },
   });
 
-  function onSubmit(data: z.infer<typeof NewEventFormSchema>) {
+  async function onSubmit(data: z.infer<typeof NewEventFormSchema>) {
     setSubmitting(true);
     try {
-      const event = {
-        ...data,
-        id: "1234",
-      };
-
-      form.reset();
-      // toast.success(`Event '${event.title}' created successfully`);
-      router.push(`/events/${event.id}`);
+      await createEvent(data);
     } catch (error) {
       console.error(error);
       toast.error("Something went wrong. Please try again.");
@@ -103,6 +94,8 @@ const NewEventForm = (props: NewEventFormProps) => {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        <h1>{"Let's get your event set up!"}</h1>
+
         <div className="flex flex-col gap-2">
           <FormField
             control={form.control}
