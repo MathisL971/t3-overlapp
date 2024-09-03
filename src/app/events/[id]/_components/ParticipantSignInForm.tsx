@@ -5,7 +5,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
-import { signInParticipant } from "~/app/actions";
+import { signInParticipant } from "~/app/_actions/auth";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import {
@@ -29,17 +29,6 @@ export type ParticipantSignInFormProps = {
   eventId: number;
 };
 
-function generateSessionToken(length = 32) {
-  const charset =
-    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-  let token = "";
-  for (let i = 0; i < length; i++) {
-    const randomIndex = Math.floor(Math.random() * charset.length);
-    token += charset[randomIndex];
-  }
-  return token;
-}
-
 const ParticipantSignInForm = (props: ParticipantSignInFormProps) => {
   const [submitting, setSubmitting] = useState(false);
 
@@ -55,10 +44,6 @@ const ParticipantSignInForm = (props: ParticipantSignInFormProps) => {
   async function onSubmit(data: z.infer<typeof ParticipantSignInFormSchema>) {
     setSubmitting(true);
     try {
-      document.cookie = `session_token=${generateSessionToken()}; expires=${new Date(
-        Date.now() + (data.rememberMe ? 1000 * 60 * 60 * 24 * 30 : 15000),
-      ).toUTCString()}`;
-
       await signInParticipant(props.eventId, data);
     } catch (error) {
       if (error instanceof Error) {

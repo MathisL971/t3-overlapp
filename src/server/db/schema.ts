@@ -10,7 +10,8 @@ import {
   varchar,
   date,
   boolean,
-  integer,
+  pgEnum,
+  time,
 } from "drizzle-orm/pg-core";
 
 /**
@@ -21,13 +22,15 @@ import {
  */
 export const createTable = pgTableCreator((name) => `overlapp_${name}`);
 
-export const events = createTable(
+export const eventTypeEnum = pgEnum("event_type", ["dotw", "dates"]);
+
+export const event = createTable(
   "event",
   {
     id: serial("id").primaryKey(),
-    title: varchar("title", { length: 256 }),
-    timezone: varchar("timezone", { length: 256 }),
-    type: varchar("type", { length: 256 }),
+    title: varchar("title", { length: 256 }).notNull(),
+    timezone: varchar("timezone", { length: 256 }).notNull(),
+    type: eventTypeEnum('type').notNull(),
     createdAt: timestamp("created_at")
       .default(sql`CURRENT_TIMESTAMP`)
       .notNull(),
@@ -38,50 +41,44 @@ export const events = createTable(
   }),
 );
 
-export const event_dates = createTable(
-  "event_date",
+export const dayTypeEnum = pgEnum("day_type", ["date", "day"]);
+export const dayOfWeekEnum = pgEnum("day_of_week", [
+  "sunday",
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+]);
+
+export const day = createTable(
+  "day",
   {
     id: serial("id").primaryKey(),
-    eventId: serial("event_id").references(() => events.id),
-    date: date("date").notNull(),
-    startTime: varchar("start_time", { length: 256 }),
-    endTime: varchar("end_time", { length: 256 }),
+    eventId: serial("event_id").references(() => event.id).notNull(),
+    type: dayTypeEnum('type').notNull(),
+    day: dayOfWeekEnum('day'),
+    date: date("date"),
+    startTime: time("start_time").notNull(),
+    endTime: time("end_time").notNull(),
     createdAt: timestamp("created_at")
       .default(sql`CURRENT_TIMESTAMP`)
       .notNull(),
     updatedAt: timestamp("updatedAt"),
   },
-  (eventDate) => ({
-    eventDateIndex: index("date_idx").on(eventDate.date),
+  (day) => ({
+    dayIndex: index("day_idx").on(day.eventId, day.day, day.date),
   }),
 );
 
-export const event_days = createTable(
-  "event_day",
+export const participant = createTable(
+  "participant",
   {
     id: serial("id").primaryKey(),
-    eventId: serial("event_id").references(() => events.id),
-    day: varchar("day", { length: 256 }),
-    startTime: varchar("start_time", { length: 256 }),
-    endTime: varchar("end_time", { length: 256 }),
-    createdAt: timestamp("created_at")
-      .default(sql`CURRENT_TIMESTAMP`)
-      .notNull(),
-    updatedAt: timestamp("updatedAt"),
-  },
-  (eventDay) => ({
-    dayIndex: index("day_idx").on(eventDay.day),
-  }),
-);
-
-export const event_participants = createTable(
-  "event_participant",
-  {
-    id: serial("id").primaryKey(),
-    eventId: serial("event_id").references(() => events.id),
+    eventId: serial("event_id").references(() => event.id).notNull(),
     username: varchar("username", { length: 256 }),
     password: varchar("password", { length: 256 }),
-    rememberMe: boolean("remember_me"),
     createdAt: timestamp("created_at")
       .default(sql`CURRENT_TIMESTAMP`)
       .notNull(),
@@ -92,38 +89,46 @@ export const event_participants = createTable(
   }),
 );
 
-export const availability_slots = createTable(
-  "availability_slot",
+export const availability = createTable(
+  "availability",
   {
     id: serial("id").primaryKey(),
     participantId: serial("participant_id").references(
-      () => event_participants.id,
-    ),
-    dateId: integer("date_id"),
-    dayId: integer("day_id"),
-    startTime: varchar("start_time", { length: 256 }),
-    endTime: varchar("end_time", { length: 256 }),
+      () => participant.id,
+    ).notNull(),
+    dayId: serial("day_id").references(() => day.id).notNull(),
+    startTime: time("start_time",
+      { precision: 0 }
+    ).notNull(),
+    endTime: time("end_time", {
+      precision: 0
+    }).notNull(),
     createdAt: timestamp("created_at")
       .default(sql`CURRENT_TIMESTAMP`)
       .notNull(),
     updatedAt: timestamp("updatedAt"),
   },
-  (availabilitySlot) => ({
+  (availability) => ({
     slotIndex: index("slot_idx").on(
-      availabilitySlot.startTime,
-      availabilitySlot.endTime,
+      availability.participantId,
+      availability.dayId,
+      availability.startTime,
+      availability.endTime,
     ),
   }),
 );
 
-export const sessions = createTable(
+export const session = createTable(
   "session",
   {
-    id: serial("id").primaryKey().notNull(),
+    id: serial("id").primaryKey(),
     token: varchar("token", { length: 256 }).notNull(),
     participantId: serial("participant_id")
-      .references(() => event_participants.id)
+      .references(() => participant.id)
       .notNull(),
+    expiresAt: timestamp("expires_at").notNull(),
+    rememberMe: boolean("remember_me").notNull(),
+    closed: boolean("closed").notNull(),
     createdAt: timestamp("created_at")
       .default(sql`CURRENT_TIMESTAMP`)
       .notNull(),

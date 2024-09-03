@@ -1,14 +1,13 @@
 import React from "react";
 import NewEventForm from "./_components/NewEventForm";
-import { cookies } from "next/headers";
+import EventLookupForm from "./_components/EventLookupForm";
 
 export default function HomePage() {
-  const cookieStore = cookies();
-  const timezone = cookieStore.get("timezone")?.value ?? "";
-
   return (
-    <>
-      <NewEventForm timezone={timezone} />
-    </>
+    <div className="flex flex-col gap-6">
+      <EventLookupForm />
+      <hr />
+      <NewEventForm />
+    </div>
   );
 }

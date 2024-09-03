@@ -4,7 +4,6 @@ import { tz } from "moment-timezone";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-
 import { Button } from "~/components/ui/button";
 import {
   Form,
@@ -23,7 +22,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select";
-
 import { Checkbox } from "~/components/ui/checkbox";
 import { Card } from "~/components/ui/card";
 import { Calendar } from "~/components/ui/calendar";
@@ -33,41 +31,29 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "~/components/ui/popover";
-import { useEffect, useState } from "react";
-import { createEvent } from "../actions";
+import { useState } from "react";
+import { createEvent } from "../_actions/events";
 import { toast } from "sonner";
+import { dayOfWeekEnum } from "~/server/db/schema";
 
 export const NewEventFormSchema = z.object({
   title: z.string().min(3).max(50),
   timezone: z.string(),
-  type: z.string(),
-  days: z.array(z.string()),
+  type: z.enum(["dotw", "dates"]),
+  days: z.array(z.enum(["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"])),
   dates: z.array(z.date()),
 });
 
-const days = [
-  { id: "monday", name: "Monday" },
-  { id: "tuesday", name: "Tuesday" },
-  { id: "wednesday", name: "Wednesday" },
-  { id: "thursday", name: "Thursday" },
-  { id: "friday", name: "Friday" },
-  { id: "saturday", name: "Saturday" },
-  { id: "sunday", name: "Sunday" },
-];
-
-type NewEventFormProps = {
-  timezone: string;
-};
-
-const NewEventForm = (props: NewEventFormProps) => {
+const NewEventForm = () => {
   const [submitting, setSubmitting] = useState(false);
+
+  const localTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
   const form = useForm<z.infer<typeof NewEventFormSchema>>({
     resolver: zodResolver(NewEventFormSchema),
     defaultValues: {
       title: "",
-      timezone: props.timezone,
-      type: "",
+      timezone: tz.names().includes(localTimezone) ? localTimezone : "",
       days: [],
       dates: [],
     },
@@ -85,16 +71,17 @@ const NewEventForm = (props: NewEventFormProps) => {
     }
   }
 
-  useEffect(() => {
-    if (!document.cookie.includes("timezone")) {
-      document.cookie = `timezone=${Intl.DateTimeFormat().resolvedOptions().timeZone}`;
-    }
-  });
-
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        <h1>{"Let's get your event set up!"}</h1>
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-2">
+        <h2>
+          {
+            "Organizing a new event?"
+          }
+        </h2>
+        <FormDescription>
+          Fill out the form below to create a new event.
+        </FormDescription>
 
         <div className="flex flex-col gap-2">
           <FormField
@@ -127,7 +114,7 @@ const NewEventForm = (props: NewEventFormProps) => {
                       <SelectValue
                         onBlur={field.onBlur}
                         ref={field.ref}
-                        placeholder={props.timezone ?? "Select a timezone"}
+                        placeholder={field.value || "Select a timezone"}
                       />
                     </SelectTrigger>
                   </FormControl>
@@ -185,7 +172,7 @@ const NewEventForm = (props: NewEventFormProps) => {
 
                   <SelectContent>
                     <SelectItem value="dotw">Days of the week</SelectItem>
-                    <SelectItem value="specific-dates">
+                    <SelectItem value="dates">
                       Specific dates
                     </SelectItem>
                   </SelectContent>
@@ -194,7 +181,7 @@ const NewEventForm = (props: NewEventFormProps) => {
                   {field.value &&
                     (field.value === "dotw"
                       ? "This event will repeat every week on the selected days."
-                      : "This event will only happen on the selected dates.")}
+                      : field.value === "dates" ? "This event will only happen on the selected dates." : null)}
                 </FormDescription>
                 <FormMessage {...field} />
               </FormItem>
@@ -211,37 +198,37 @@ const NewEventForm = (props: NewEventFormProps) => {
                     <FormLabel htmlFor={field.name}>Days of the week</FormLabel>{" "}
                     <FormControl>
                       <Card className="space-y-2 rounded-md p-3">
-                        {days.map((day) => (
+                        {dayOfWeekEnum.enumValues.map((day) => (
                           <FormField
-                            key={day.id}
+                            key={day}
                             control={form.control}
                             name="days"
                             render={({ field }) => {
                               return (
                                 <FormItem
-                                  key={day.id}
+                                  key={day}
                                   className="flex flex-row items-start space-x-3 space-y-0 align-middle"
                                 >
                                   <FormControl>
                                     <Checkbox
                                       className="self-center"
-                                      checked={field.value?.includes(day.id)}
+                                      checked={field.value?.includes(day)}
                                       onCheckedChange={(checked) => {
                                         return checked
                                           ? field.onChange([
-                                              ...field.value,
-                                              day.id,
-                                            ])
+                                            ...field.value,
+                                            day,
+                                          ])
                                           : field.onChange(
-                                              field.value?.filter(
-                                                (value) => value !== day.id,
-                                              ),
-                                            );
+                                            field.value?.filter(
+                                              (value) => value !== day,
+                                            ),
+                                          );
                                       }}
                                     />
                                   </FormControl>
                                   <FormLabel className="text-sm font-normal">
-                                    {day.name}
+                                    {day.charAt(0).toUpperCase() + day.slice(1)}
                                   </FormLabel>
                                 </FormItem>
                               );
@@ -254,7 +241,7 @@ const NewEventForm = (props: NewEventFormProps) => {
                   </FormItem>
                 )}
               />
-            ) : (
+            ) : form.watch("type") === "dates" ? (
               <FormField
                 control={form.control}
                 name="dates"
@@ -272,9 +259,9 @@ const NewEventForm = (props: NewEventFormProps) => {
                             <p className="overflow-hidden">
                               {field.value.length > 0
                                 ? field.value
-                                    .sort((a, b) => a.getTime() - b.getTime())
-                                    .map((date) => date.toLocaleDateString())
-                                    .join(", ")
+                                  .sort((a, b) => a.getTime() - b.getTime())
+                                  .map((date) => date.toLocaleDateString())
+                                  .join(", ")
                                 : "Pick your dates"}
                             </p>
                           </Button>
@@ -294,7 +281,7 @@ const NewEventForm = (props: NewEventFormProps) => {
                   </FormItem>
                 )}
               />
-            ))}
+            ) : null)}
         </div>
 
         <Button type="submit" disabled={submitting}>

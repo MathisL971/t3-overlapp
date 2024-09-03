@@ -1,25 +1,22 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { signOutParticipant } from "~/app/_actions/auth";
 import { Button } from "~/components/ui/button";
 
 export default function SignOutButton() {
-  const router = useRouter();
-
   const [signingOut, setSigningOut] = useState(false);
 
   return (
     <Button
       type="button"
-      className="my-auto"
-      onClick={() => {
+      className={`my-auto hover:bg-red-400 text-white ${signingOut ? "bg-red-400" : "bg-red-500"}`}
+      onClick={async () => {
         setSigningOut(true);
-        document.cookie =
-          "session_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC";
-        router.refresh();
+        await signOutParticipant();
       }}
       disabled={signingOut}
+      size={"sm"}
     >
       {signingOut ? "Signing out..." : "Sign out"}
     </Button>

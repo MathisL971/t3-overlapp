@@ -1,86 +1,50 @@
-import {
-  getEvent,
-  getEventParticipantById,
-  getSession,
-} from "~/server/queries";
-import ParticipantSignInForm from "./_components/ParticipantSignInForm";
 import { cookies } from "next/headers";
-import SignOutButton from "./_components/SignOutButton";
-import type { event_participants, sessions } from "~/server/db/schema";
-import ParticipantAvailabilities from "./_components/ParticipantAvailabilities";
-import { Button } from "~/components/ui/button";
+import type { participant, session } from "~/server/db/schema";
+import { getAvailabilitiesByEvent } from "~/server/queries/availabilities";
+import { getSession } from "~/server/queries/sessions";
+import { getParticipantById } from "~/server/queries/participants";
+import { getEventDays } from "~/server/queries/days";
+import EventBody from "./_components/EventBody";
 
-type Session = typeof sessions.$inferInsert;
-type EventParticipant = typeof event_participants.$inferInsert;
+type Session = typeof session.$inferSelect;
+type Participant = typeof participant.$inferSelect;
 
 export default async function EventPage({
   params,
 }: {
-  params: { id: number };
+  params: { id: string };
 }) {
   const { id } = params;
 
-  const event = await getEvent(id);
-
-  if (!event) {
-    return (
-      <div>
-        <h1>Event not found</h1>
-        <p className="mt-2">The event you are looking for does not exist.</p>
-        <a href="/">
-          <Button type="button" className="mt-4">
-            Back to events
-          </Button>
-        </a>
-      </div>
-    );
-  }
+  let eventParticipant: Participant | undefined = undefined;
 
   const cookieStore = cookies();
   const sessionToken = cookieStore.get("session_token")?.value;
 
-  if (!sessionToken) {
-    return (
-      <div className="flex flex-col gap-4">
-        <h1>{event.title}</h1>
-        <ParticipantSignInForm eventId={event.id} />
-      </div>
-    );
+  if (sessionToken) {
+    const session: Session | undefined = await getSession(sessionToken);
+
+    if (session && !session.closed) {
+      const participant: Participant | undefined =
+        await getParticipantById(session.participantId);
+
+      if (participant && participant.eventId === Number(id)) {
+        eventParticipant = participant;
+      }
+    }
   }
 
-  const session: Session | undefined = await getSession(sessionToken);
-
-  if (!session) {
-    cookieStore.set("session_token", "", { expires: new Date(0) });
-    return (
-      <div className="flex flex-col gap-4">
-        <h1>{event.title}</h1>
-        <ParticipantSignInForm eventId={event.id} />
-      </div>
-    );
-  }
-
-  const participant: EventParticipant | undefined =
-    await getEventParticipantById(session.participantId!);
-
-  if (!participant) {
-    cookieStore.set("session_token", "", { expires: new Date(0) });
-    return (
-      <div className="flex flex-col gap-4">
-        <h1>{event.title}</h1>
-        <ParticipantSignInForm eventId={event.id} />
-      </div>
-    );
-  }
+  const availabilities = await getAvailabilitiesByEvent(Number(id));
+  const days = await getEventDays(Number(id));
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-row justify-between align-middle">
-        <h1>{event.title}</h1>
-        <SignOutButton />
-      </div>
-
-      <ParticipantAvailabilities participant={participant} />
-    </div>
+    <EventBody
+      eventId={Number(id)}
+      participant={eventParticipant}
+      availabilities={availabilities}
+      days={days}
+    />
   );
 }
+
+

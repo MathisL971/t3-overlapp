@@ -70,6 +70,7 @@
   * {
     @apply border-border;
   }
+
   body {
     @apply bg-background text-foreground;
   }
@@ -77,4 +78,24 @@
 
 h1 {
   @apply mb-0 text-4xl font-extrabold md:mb-2 md:text-5xl lg:mb-4 lg:text-6xl xl:mb-6 xl:text-7xl;
+}
+
+h2 {
+  @apply mb-0 text-3xl font-bold md:mb-2 md:text-4xl lg:mb-4 lg:text-5xl xl:mb-6 xl:text-6xl;
+}
+
+h3 {
+  @apply mb-0 text-2xl font-semibold md:mb-2 md:text-3xl lg:mb-4 lg:text-4xl xl:mb-6 xl:text-5xl;
+}
+
+h4 {
+  @apply mb-0 text-xl font-medium md:mb-2 md:text-2xl lg:mb-4 lg:text-3xl xl:mb-6 xl:text-4xl;
+}
+
+h5 {
+  @apply mb-0 text-lg font-normal md:mb-2 md:text-xl lg:mb-4 lg:text-2xl xl:mb-6 xl:text-3xl;
+}
+
+h6 {
+  @apply mb-0 text-base font-light md:mb-2 md:text-lg lg:mb-4 lg:text-xl xl:mb-6 xl:text-2xl;
 }
