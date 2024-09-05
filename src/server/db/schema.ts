@@ -1,7 +1,7 @@
 // Example model schema from the Drizzle docs
 // https://orm.drizzle.team/docs/sql-schema-declaration
 
-import { sql } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import {
   index,
   pgTableCreator,
@@ -22,25 +22,8 @@ import {
  */
 export const createTable = pgTableCreator((name) => `overlapp_${name}`);
 
+// ENUMS
 export const eventTypeEnum = pgEnum("event_type", ["dotw", "dates"]);
-
-export const event = createTable(
-  "event",
-  {
-    id: serial("id").primaryKey(),
-    title: varchar("title", { length: 256 }).notNull(),
-    timezone: varchar("timezone", { length: 256 }).notNull(),
-    type: eventTypeEnum('type').notNull(),
-    createdAt: timestamp("created_at")
-      .default(sql`CURRENT_TIMESTAMP`)
-      .notNull(),
-    updatedAt: timestamp("updatedAt"),
-  },
-  (event) => ({
-    titleIndex: index("title_idx").on(event.title),
-  }),
-);
-
 export const dayTypeEnum = pgEnum("day_type", ["date", "day"]);
 export const dayOfWeekEnum = pgEnum("day_of_week", [
   "sunday",
@@ -52,13 +35,33 @@ export const dayOfWeekEnum = pgEnum("day_of_week", [
   "saturday",
 ]);
 
+// TABLES
+export const event = createTable(
+  "event",
+  {
+    id: serial("id").primaryKey(),
+    title: varchar("title", { length: 256 }).notNull(),
+    timezone: varchar("timezone", { length: 256 }).notNull(),
+    type: eventTypeEnum("type").notNull(),
+    createdAt: timestamp("created_at")
+      .default(sql`CURRENT_TIMESTAMP`)
+      .notNull(),
+    updatedAt: timestamp("updatedAt"),
+  },
+  (event) => ({
+    titleIndex: index("title_idx").on(event.title),
+  }),
+);
+
 export const day = createTable(
   "day",
   {
     id: serial("id").primaryKey(),
-    eventId: serial("event_id").references(() => event.id).notNull(),
-    type: dayTypeEnum('type').notNull(),
-    day: dayOfWeekEnum('day'),
+    eventId: serial("event_id")
+      .references(() => event.id)
+      .notNull(),
+    type: dayTypeEnum("type").notNull(),
+    day: dayOfWeekEnum("day"),
     date: date("date"),
     startTime: time("start_time").notNull(),
     endTime: time("end_time").notNull(),
@@ -76,7 +79,9 @@ export const participant = createTable(
   "participant",
   {
     id: serial("id").primaryKey(),
-    eventId: serial("event_id").references(() => event.id).notNull(),
+    eventId: serial("event_id")
+      .references(() => event.id)
+      .notNull(),
     username: varchar("username", { length: 256 }),
     password: varchar("password", { length: 256 }),
     createdAt: timestamp("created_at")
@@ -93,15 +98,15 @@ export const availability = createTable(
   "availability",
   {
     id: serial("id").primaryKey(),
-    participantId: serial("participant_id").references(
-      () => participant.id,
-    ).notNull(),
-    dayId: serial("day_id").references(() => day.id).notNull(),
-    startTime: time("start_time",
-      { precision: 0 }
-    ).notNull(),
+    participantId: serial("participant_id")
+      .references(() => participant.id)
+      .notNull(),
+    dayId: serial("day_id")
+      .references(() => day.id)
+      .notNull(),
+    startTime: time("start_time", { precision: 0 }).notNull(),
     endTime: time("end_time", {
-      precision: 0
+      precision: 0,
     }).notNull(),
     createdAt: timestamp("created_at")
       .default(sql`CURRENT_TIMESTAMP`)
@@ -138,3 +143,44 @@ export const session = createTable(
     sessionIndex: index("session_idx").on(session.token),
   }),
 );
+
+// RELATIONS
+export const eventRelations = relations(event, ({ many }) => ({
+  days: many(day),
+  participants: many(participant),
+}));
+
+export const dayRelations = relations(day, ({ one, many }) => ({
+  event: one(event, {
+    fields: [day.eventId],
+    references: [event.id],
+  }),
+  availabilities: many(availability),
+}));
+
+export const participantRelations = relations(participant, ({ one, many }) => ({
+  event: one(event, {
+    fields: [participant.eventId],
+    references: [event.id],
+  }),
+  availabilities: many(availability),
+  sessions: many(session),
+}));
+
+export const availabilityRelations = relations(availability, ({ one }) => ({
+  participant: one(participant, {
+    fields: [availability.participantId],
+    references: [participant.id],
+  }),
+  day: one(day, {
+    fields: [availability.dayId],
+    references: [day.id],
+  }),
+}));
+
+export const sessionRelations = relations(session, ({ one }) => ({
+  participant: one(participant, {
+    fields: [session.participantId],
+    references: [participant.id],
+  }),
+}));

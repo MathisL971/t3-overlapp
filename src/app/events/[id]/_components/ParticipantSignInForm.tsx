@@ -18,6 +18,7 @@ import {
   FormMessage,
 } from "~/components/ui/form";
 import { Input } from "~/components/ui/input";
+import type { event } from "~/server/db/schema";
 
 export const ParticipantSignInFormSchema = z.object({
   username: z.string(),
@@ -25,11 +26,15 @@ export const ParticipantSignInFormSchema = z.object({
   rememberMe: z.boolean(),
 });
 
+type Event = typeof event.$inferSelect;
+
 export type ParticipantSignInFormProps = {
-  eventId: number;
+  event: Event;
 };
 
 const ParticipantSignInForm = (props: ParticipantSignInFormProps) => {
+  const { event } = props;
+
   const [submitting, setSubmitting] = useState(false);
 
   const form = useForm<z.infer<typeof ParticipantSignInFormSchema>>({
@@ -44,7 +49,7 @@ const ParticipantSignInForm = (props: ParticipantSignInFormProps) => {
   async function onSubmit(data: z.infer<typeof ParticipantSignInFormSchema>) {
     setSubmitting(true);
     try {
-      await signInParticipant(props.eventId, data);
+      await signInParticipant(event.id, data);
     } catch (error) {
       if (error instanceof Error) {
         toast.error(error.message);
@@ -58,18 +63,24 @@ const ParticipantSignInForm = (props: ParticipantSignInFormProps) => {
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-        <FormDescription>
-          Sign in as a participant to add/modify your availabilities for this
-          event.
-        </FormDescription>
+      <form
+        onSubmit={form.handleSubmit(onSubmit)}
+        className="col-span-6 block space-y-4 rounded-lg border border-slate-300 bg-slate-50 p-5 dark:border-slate-600 dark:bg-slate-900 dark:placeholder:text-slate-400"
+      >
+        <div>
+          <h5 className="mb-1">Join the event now!</h5>
+          <FormDescription>
+            Sign in as a participant to add/modify your availabilities for this
+            event.
+          </FormDescription>
+        </div>
 
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-2 lg:flex-row">
           <FormField
             control={form.control}
             name="username"
             render={({ field }) => (
-              <FormItem>
+              <FormItem className="flex-grow">
                 <FormLabel htmlFor={field.name}>Username</FormLabel>
                 <FormControl>
                   <Input {...field} />
@@ -82,7 +93,7 @@ const ParticipantSignInForm = (props: ParticipantSignInFormProps) => {
             control={form.control}
             name="password"
             render={({ field }) => (
-              <FormItem>
+              <FormItem className="flex-grow">
                 <FormLabel htmlFor={field.name}>Password</FormLabel>
                 <FormControl>
                   <Input type="password" {...field} />
@@ -91,28 +102,26 @@ const ParticipantSignInForm = (props: ParticipantSignInFormProps) => {
               </FormItem>
             )}
           />
-
-          <FormField
-            control={form.control}
-            name="rememberMe"
-            render={({ field }) => (
-              <FormItem>
-                <div className="my-2 flex flex-row gap-2">
-                  <FormControl>
-                    <Checkbox
-                      checked={field.value}
-                      onCheckedChange={(checked) => field.onChange(checked)}
-                    />
-                  </FormControl>
-                  <FormLabel htmlFor={field.name}>Remember me</FormLabel>
-                </div>
-
-                <FormMessage {...field} />
-              </FormItem>
-            )}
-          />
         </div>
+        <FormField
+          control={form.control}
+          name="rememberMe"
+          render={({ field }) => (
+            <FormItem>
+              <div className="my-2 flex flex-row gap-2">
+                <FormControl>
+                  <Checkbox
+                    checked={field.value}
+                    onCheckedChange={(checked) => field.onChange(checked)}
+                  />
+                </FormControl>
+                <FormLabel htmlFor={field.name}>Remember me</FormLabel>
+              </div>
 
+              <FormMessage {...field} />
+            </FormItem>
+          )}
+        />
         <Button type="submit" disabled={submitting}>
           {submitting ? "Signing in..." : "Sign in"}
         </Button>

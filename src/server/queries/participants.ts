@@ -1,46 +1,36 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "../db";
 import { participant } from "../db/schema";
-import type { NewParticipant } from "../types";
 
-export async function getEventParticipantByEventAndUsername(eventId: number, username: string) {
-    const res = await db
-        .select()
-        .from(participant)
-        .where(
-            and(
-                eq(participant.eventId, eventId),
-                eq(participant.username, username),
-            ),
-        );
+type InsertParticipant = typeof participant.$inferInsert;
 
-    if (res.length === 0) {
-        return undefined;
-    }
-
-    return res[0];
+export async function getEventParticipantByEventAndUsername(
+  eventId: number,
+  username: string,
+) {
+  return await db.query.participant.findFirst({
+    where: and(
+      eq(participant.eventId, eventId),
+      eq(participant.username, username),
+    ),
+  });
 }
 
 export async function getParticipantById(participantId: number) {
-    const res = await db.select().from(participant).where(eq(participant.id, participantId))
-    if (res.length === 0) {
-        return undefined;
-    }
-    return res[0];
+  return await db.query.participant.findFirst({
+    where: eq(participant.id, participantId),
+  });
 }
 
 export async function getParticipantsByEvent(eventId: number) {
-    return await db.query.participant.findMany({
-        where: (model, { eq }) => eq(model.eventId, eventId),
-    });
+  return await db.query.participant.findMany({
+    where: eq(participant.eventId, eventId),
+  });
 }
 
 export async function insertEventParticipant(
-    newParticipant: NewParticipant,
+  newParticipant: InsertParticipant,
 ) {
-    const res = await db
-        .insert(participant)
-        .values(newParticipant)
-        .returning();
-    return res[0];
+  const res = await db.insert(participant).values(newParticipant).returning();
+  return res[0];
 }

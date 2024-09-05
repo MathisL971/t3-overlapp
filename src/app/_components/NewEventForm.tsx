@@ -40,7 +40,17 @@ export const NewEventFormSchema = z.object({
   title: z.string().min(3).max(50),
   timezone: z.string(),
   type: z.enum(["dotw", "dates"]),
-  days: z.array(z.enum(["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"])),
+  days: z.array(
+    z.enum([
+      "sunday",
+      "monday",
+      "tuesday",
+      "wednesday",
+      "thursday",
+      "friday",
+      "saturday",
+    ]),
+  ),
   dates: z.array(z.date()),
 });
 
@@ -74,11 +84,7 @@ const NewEventForm = () => {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-2">
-        <h2>
-          {
-            "Organizing a new event?"
-          }
-        </h2>
+        <h1>{"Organizing a new event?"}</h1>
         <FormDescription>
           Fill out the form below to create a new event.
         </FormDescription>
@@ -172,16 +178,16 @@ const NewEventForm = () => {
 
                   <SelectContent>
                     <SelectItem value="dotw">Days of the week</SelectItem>
-                    <SelectItem value="dates">
-                      Specific dates
-                    </SelectItem>
+                    <SelectItem value="dates">Specific dates</SelectItem>
                   </SelectContent>
                 </Select>
                 <FormDescription>
                   {field.value &&
                     (field.value === "dotw"
                       ? "This event will repeat every week on the selected days."
-                      : field.value === "dates" ? "This event will only happen on the selected dates." : null)}
+                      : field.value === "dates"
+                        ? "This event will only happen on the selected dates."
+                        : null)}
                 </FormDescription>
                 <FormMessage {...field} />
               </FormItem>
@@ -216,14 +222,14 @@ const NewEventForm = () => {
                                       onCheckedChange={(checked) => {
                                         return checked
                                           ? field.onChange([
-                                            ...field.value,
-                                            day,
-                                          ])
+                                              ...field.value,
+                                              day,
+                                            ])
                                           : field.onChange(
-                                            field.value?.filter(
-                                              (value) => value !== day,
-                                            ),
-                                          );
+                                              field.value?.filter(
+                                                (value) => value !== day,
+                                              ),
+                                            );
                                       }}
                                     />
                                   </FormControl>
@@ -259,9 +265,9 @@ const NewEventForm = () => {
                             <p className="overflow-hidden">
                               {field.value.length > 0
                                 ? field.value
-                                  .sort((a, b) => a.getTime() - b.getTime())
-                                  .map((date) => date.toLocaleDateString())
-                                  .join(", ")
+                                    .sort((a, b) => a.getTime() - b.getTime())
+                                    .map((date) => date.toLocaleDateString())
+                                    .join(", ")
                                 : "Pick your dates"}
                             </p>
                           </Button>

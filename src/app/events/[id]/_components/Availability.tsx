@@ -1,25 +1,27 @@
 "use client";
 
 import { toast } from "sonner";
-import { createAvailability, deleteAvailabilitySlot } from "~/app/_actions/availabilities";
+import {
+  createAvailability,
+  deleteAvailabilitySlot,
+} from "~/app/_actions/availabilities";
 import { Button } from "~/components/ui/button";
-import type {
-  availability,
-  day,
-  participant,
-} from "~/server/db/schema";
+import type { availability, day, participant } from "~/server/db/schema";
 import type { TemporaryAvailabilitySlot } from "./AvailabilityDrawer";
-import type { NewAvailability } from "~/server/types";
 
 type Availability = typeof availability.$inferSelect;
 type Participant = typeof participant.$inferSelect;
 type Day = typeof day.$inferSelect;
 
+type InsertAvailability = typeof availability.$inferInsert;
+
 type AvailabilitySlotProps = {
   participant: Participant;
   day: Day;
   slot: TemporaryAvailabilitySlot;
-  setAvailabilities: unknown;
+  setAvailabilities: (
+    availabilities: Availability[] | ((prev: Availability[]) => Availability[]),
+  ) => void;
 };
 
 export default function Availability(props: AvailabilitySlotProps) {
@@ -33,15 +35,22 @@ export default function Availability(props: AvailabilitySlotProps) {
           prev.filter((availability) => availability.id !== slot.savedSlotId),
         );
       } else {
-        const newAvailability: NewAvailability = {
+        const newAvailability: InsertAvailability = {
           participantId: participant.id,
           dayId: day.id,
           startTime: slot.startTime,
           endTime: slot.endTime,
-        }
+        };
 
-        const createdAvailability: Availability = await createAvailability(newAvailability);
-        setAvailabilities((prev) => [...prev, createdAvailability]);
+        const createdAvailability: Availability =
+          await createAvailability(newAvailability);
+        setAvailabilities((prev) => [
+          ...prev,
+          {
+            ...createdAvailability,
+            participant,
+          },
+        ]);
       }
     } catch (error) {
       console.error(error);

@@ -4,6 +4,7 @@ import { Inter } from "next/font/google";
 import BrightnessToggleButton from "./_components/BrightnessToggleButton";
 import { cookies } from "next/headers";
 import { Toaster } from "~/components/ui/sonner";
+import { ThemeModeScript } from "flowbite-react";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -26,7 +27,9 @@ export default function RootLayout({
 
   return (
     <html lang="en">
-      <head></head>
+      <head>
+        <ThemeModeScript />
+      </head>
       <body
         className={`font-sans ${inter.variable} ${theme === "dark" ? theme : ""}`}
       >
