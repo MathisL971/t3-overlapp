@@ -7,26 +7,36 @@ import ParticipantSignInForm from "./ParticipantSignInForm";
 import { Clipboard } from "flowbite-react";
 import GroupAvailabilities from "./GroupAvailabilities";
 import ParticipantAvailabilities from "./ParticipantAvailabilities";
+import { tz } from "moment-timezone";
+import { DateTime } from "luxon";
 
 type Participant = typeof participant.$inferSelect;
 type Event = typeof event.$inferSelect;
-type Availability = typeof availability.$inferSelect;
-type Day = typeof day.$inferSelect;
 
 type EventBodyProps = {
   event: Event;
-  availabilities: Availability[];
-  days: Day[];
   participant?: Participant;
-  participants: Participant[];
+  formattedDays: any;
 };
 
 export default function EventBody(props: EventBodyProps) {
-  const { event, participant, days, participants } = props;
+  const { event, participant, formattedDays } = props;
 
-  const [availabilities, setAvailabilities] = useState<Availability[]>(
-    props.availabilities,
+  // const [availabilities, setAvailabilities] = useState<Availability[]>(
+  //   props.availabilities,
+  // );
+
+  const [timezone, setTimezone] = useState<string>(
+    Intl.DateTimeFormat().resolvedOptions().timeZone,
   );
+
+  const eventTimezone = tz(event.timezone);
+  const clientTimezone = tz(timezone);
+  const offset = (eventTimezone.utcOffset() - clientTimezone.utcOffset()) / 60;
+
+  // const participantAvailabilities = availabilities.filter(
+  //   (availability) => availability.participantId === participant?.id,
+  // );
 
   return (
     <div className="flex flex-col gap-6">
@@ -44,21 +54,29 @@ export default function EventBody(props: EventBodyProps) {
           valueToCopy={`http://localhost:3000/events/${event.id}`}
         />
       </div>
-      {participant ? (
+
+      <select
+        className="text-black"
+        value={timezone}
+        onChange={(e) => setTimezone(e.target.value)}
+      >
+        {tz.names().map((name) => (
+          <option key={name} value={name}>
+            {name}
+          </option>
+        ))}
+      </select>
+
+      {/* {participant ? (
         <ParticipantAvailabilities
           participant={participant}
-          availabilities={availabilities}
-          days={days}
-          setAvailabilities={setAvailabilities}
+          formattedDays={formattedDays}
+          timezone={timezone}
         />
       ) : (
         <ParticipantSignInForm event={event} />
-      )}
-      <GroupAvailabilities
-        availabilities={availabilities}
-        days={days}
-        participants={participants}
-      />
+      )} */}
+      <GroupAvailabilities event={event} formattedDays={formattedDays} />
     </div>
   );
 }

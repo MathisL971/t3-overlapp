@@ -39,7 +39,7 @@ export default function RootLayout({
           </a>
           <BrightnessToggleButton theme={theme} />
         </nav>
-        <main className="flex flex-col gap-6 px-8 py-20 sm:px-24 md:px-44 lg:px-72 xl:px-96">
+        <main className="flex flex-col gap-6 px-8 py-20 sm:px-20 md:px-40 lg:px-60 xl:px-80">
           {children}
         </main>
         <footer className="flex flex-col p-3"></footer>

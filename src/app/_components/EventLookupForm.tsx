@@ -41,6 +41,16 @@ export default function EventLookupForm() {
   async function onSubmit(data: z.infer<typeof EventLookupFormSchema>) {
     setSubmitting(true);
 
+    if (
+      Number.isNaN(Number(data.eventCode)) ||
+      !Number.isInteger(Number(data.eventCode))
+    ) {
+      toast.error("Event code must be a number.");
+      form.reset();
+      setSubmitting(false);
+      return;
+    }
+
     const event: Event | undefined = await fetchEvent(Number(data.eventCode));
 
     if (!event) {

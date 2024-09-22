@@ -17,17 +17,16 @@ import {
   DialogTrigger,
 } from "~/components/ui/dialog";
 import { Button } from "~/components/ui/button";
-import type { availability, day, participant } from "~/server/db/schema";
+import type { availability, day, event } from "~/server/db/schema";
 import { useState } from "react";
 
 type Availability = typeof availability.$inferSelect;
 type Day = typeof day.$inferSelect;
-type Participant = typeof participant.$inferSelect;
+type Event = typeof event.$inferSelect;
 
 type GroupAvailabilitiesProps = {
-  availabilities: Availability[];
-  days: Day[];
-  participants: Participant[];
+  event: Event;
+  formattedDays: any;
 };
 
 const constructSlotGrid = (days: Day[]) => {
@@ -81,77 +80,127 @@ const constructColorsRecord = (availabilities: Availability[]) => {
 
   const countsValuesSet = new Set(Object.values(counts));
   const countsValues = Array.from(countsValuesSet).sort((a, b) => a - b);
+  const cutCountValues =
+    countsValues.length > 9
+      ? countsValues.slice(countsValues.length - 9)
+      : countsValues;
+
+  const availableColors: Record<number, string> = {
+    0: "bg-none",
+    1: "bg-green-200",
+    2: "bg-green-300",
+    3: "bg-green-400",
+    4: "bg-green-500",
+    5: "bg-green-600",
+    6: "bg-green-700",
+    7: "bg-green-800",
+    8: "bg-green-900",
+    9: "bg-green-950",
+  };
+
   const colors: Record<number, string> = {};
-  for (let i = 0; i < countsValues.length; i++) {
-    const count = countsValues[i] ?? 0;
-    colors[count] = `rgba(0, 255, 0, ${1 - (countsValues.length / 55) * i})`;
+
+  for (let i = 0; i < cutCountValues.length; i++) {
+    const count = cutCountValues[i] ?? 0;
+    colors[count] =
+      availableColors[i + (9 - cutCountValues.length)] ?? "bg-none";
   }
-  colors[0] = "transparent";
+  colors[0] = "bg-none";
 
   return colors;
 };
 
 export default function GroupAvailabilities(props: GroupAvailabilitiesProps) {
-  const { availabilities, days, participants } = props;
+  const { event, formattedDays } = props;
 
-  const colors = constructColorsRecord(availabilities);
-  const numCols = Math.min(4, days.length);
+  console.log(formattedDays);
 
-  const [displayedDays, setDisplayedDays] = useState<Day[]>(
-    days.slice(0, numCols),
+  // const colors = constructColorsRecord(formattedDays);
+
+  const [windowWidth, setWindowWidth] = useState<number>(window.innerWidth);
+
+  window.addEventListener("resize", () => {
+    setWindowWidth(window.innerWidth);
+  });
+
+  const numCols = Math.min(
+    Math.round(windowWidth / 200),
+    Object.keys(formattedDays).length,
   );
 
-  const slots = constructSlotGrid(displayedDays);
+  const [startIdx, setStartIdx] = useState<number>(0);
+
+  const displayedDays = Object.values(formattedDays).slice(
+    startIdx,
+    startIdx + numCols,
+  );
 
   return (
     <div className="col-span-6 block space-y-4 rounded-md border border-slate-300 bg-slate-50 p-5 dark:border-slate-600 dark:bg-slate-900 dark:placeholder:text-slate-400">
-      <div className="flex flex-col gap-1">
+      <div className="flex flex-col">
         <div className="flex flex-row items-center justify-between">
           <h5 className="m-0">Group Availabilities</h5>
-          {days.length > numCols && (
+          {Object.keys(formattedDays).length > numCols && (
             <div className="flex flex-row gap-1">
               <Button
-                disabled={displayedDays[0]!.id === days[0]!.id}
-                onClick={() => {
-                  const indexOfCurrentFirst = days.findIndex(
-                    (day) => day.id === displayedDays[0]!.id,
-                  );
-                  setDisplayedDays(
-                    days.slice(
-                      indexOfCurrentFirst - 1,
-                      indexOfCurrentFirst + numCols - 1,
-                    ),
-                  );
-                }}
+                className="px-2"
+                disabled={startIdx === 0}
+                onClick={() => setStartIdx(startIdx - 1)}
               >
-                {"<"}
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={1.5}
+                  stroke="currentColor"
+                  className="size-5"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M15.75 19.5 8.25 12l7.5-7.5"
+                  />
+                </svg>
               </Button>
               <Button
+                className="px-2"
                 disabled={
-                  displayedDays[numCols - 1]!.id === days[days.length - 1]!.id
+                  startIdx + numCols === Object.keys(formattedDays).length
                 }
-                onClick={() => {
-                  const indexOfCurrentFirst = days.findIndex(
-                    (day) => day.id === displayedDays[0]!.id,
-                  );
-                  setDisplayedDays(
-                    days.slice(
-                      indexOfCurrentFirst + 1,
-                      indexOfCurrentFirst + numCols + 1,
-                    ),
-                  );
-                }}
+                onClick={() => setStartIdx(startIdx + 1)}
               >
-                {">"}
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={1.5}
+                  stroke="currentColor"
+                  className="size-5"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="m8.25 4.5 7.5 7.5-7.5 7.5"
+                  />
+                </svg>
               </Button>
             </div>
           )}
         </div>
+        <h6
+          style={{
+            fontSize: "0.9rem",
+          }}
+          className="text-slate-500"
+        >
+          {event.timezone}
+        </h6>
         <p
           style={{
             fontSize: "0.8rem",
             color: "#94a3b8",
           }}
+          className="mt-2"
         >
           {
             "Select any slot with the information icon to view the participants' availabilities."
@@ -159,9 +208,9 @@ export default function GroupAvailabilities(props: GroupAvailabilitiesProps) {
         </p>
       </div>
 
-      <Table className="">
+      <Table>
         <TableHeader>
-          <TableRow>
+          <TableRow className="hover:bg-transparent">
             <TableHead
               className="text-center"
               style={{
@@ -170,24 +219,19 @@ export default function GroupAvailabilities(props: GroupAvailabilitiesProps) {
             >
               Time
             </TableHead>
-            {displayedDays.slice(0, numCols).map((day) => (
-              <TableHead key={day.id} className="text-center">
-                {day.type === "date"
-                  ? new Date(day.date!)
-                      .toLocaleDateString("en-US", {
-                        weekday: "short",
-                        month: "short",
-                        day: "numeric",
-                      })
-                      .toUpperCase()
-                  : day.day!.toUpperCase()[0] + day.day!.slice(1, 3)}
+            {Object.keys(formattedDays).map((day) => (
+              <TableHead key={day} className="text-center">
+                {day}
               </TableHead>
             ))}
           </TableRow>
         </TableHeader>
         <TableBody>
-          {slots.map((slot) => (
-            <TableRow key={slot.id} className="text-center">
+          {constructSlotGrid(Object.values(formattedDays)).map(({ day}) => (
+            <TableRow
+              key={slot.id}
+              className="text-center hover:bg-transparent"
+            >
               <TableCell className="flex flex-row justify-center p-1 text-xs">
                 {slot.startTime.slice(0, 5)} - {slot.endTime.slice(0, 5)}
               </TableCell>
@@ -210,10 +254,7 @@ export default function GroupAvailabilities(props: GroupAvailabilitiesProps) {
                 return (
                   <TableCell
                     key={day.id}
-                    className="p-1"
-                    style={{
-                      backgroundColor: colors[slotAvailabilities.length],
-                    }}
+                    className={`p-1 ${colors[slotAvailabilities.length]}`}
                   >
                     <Dialog>
                       <DialogTrigger
