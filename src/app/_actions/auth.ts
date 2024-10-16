@@ -84,6 +84,8 @@ export async function signInParticipant(
   });
 
   revalidatePath(`/events/${eventId}`);
+
+  return participant;
 }
 
 export async function signOutParticipant() {

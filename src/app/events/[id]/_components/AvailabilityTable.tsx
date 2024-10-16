@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useContext } from "react";
 import {
   createAvailability,
   deleteAvailabilitySlot,
@@ -12,66 +12,57 @@ import {
   TableRow,
   TableBody,
 } from "~/components/ui/table";
-import { availability, day, participant } from "~/server/db/schema";
+import type { AvailabilityGrid, GridDay } from "./EventBody";
+import { DateTime } from "luxon";
+import { EventContext } from "../_contexts/event";
+import { useStore } from "zustand";
+import { tz } from "moment-timezone";
+import type { availability } from "~/server/db/schema";
+import type { PopulatedAvailability } from "../page";
 
-type Day = typeof day.$inferSelect;
-type Availability = typeof availability.$inferSelect;
 type InsertAvailability = typeof availability.$inferInsert;
-type Participant = typeof participant.$inferSelect;
 
-type AvailabilityTableProps = {
-  participant: Participant;
-  days: Day[];
-  availabilities: Availability[];
-  setAvailabilities: (
-    availabilities: Availability[] | ((prev: Availability[]) => Availability[]),
-  ) => void;
+const weekDayToNumber = (day: string) => {
+  switch (day) {
+    case "monday":
+      return 1;
+    case "tuesday":
+      return 2;
+    case "wednesday":
+      return 3;
+    case "thursday":
+      return 4;
+    case "friday":
+      return 5;
+    case "saturday":
+      return 6;
+    case "sunday":
+      return 7;
+  }
 };
 
-const constructSlotGrid = (days: Day[]) => {
-  const minStartTime = days.reduce((min, day) => {
-    const startTime = day.startTime;
-    return startTime < min ? startTime : min;
-  }, days[0]!.startTime);
-
-  const maxEndTime = days.reduce((max, day) => {
-    const endTime = day.endTime;
-    return endTime > max ? endTime : max;
-  }, days[0]!.endTime);
-
-  const startHour = new Date(
-    new Date().toDateString() + " " + minStartTime,
-  ).getHours();
-  const endHour = new Date(
-    new Date().toDateString() + " " + maxEndTime,
-  ).getHours();
-
-  const slots = [];
-
-  for (let i = startHour; i < endHour; i++) {
-    const slot1 = {
-      id: i,
-      startTime: `${i < 10 ? "0" + i : i}:00:00`,
-      endTime: `${i < 10 ? "0" + i : i}:30:00`,
-      savedSlotId: undefined,
-    };
-    slots.push(slot1);
-
-    const slot2 = {
-      id: i + 0.5,
-      startTime: `${i < 10 ? "0" + i : i}:30:00`,
-      endTime: `${i + 1 < 10 ? "0" + (i + 1) : i + 1}:00:00`,
-      savedSlotId: undefined,
-    };
-
-    slots.push(slot2);
-  }
-
-  return slots;
+type AvailabilityTableProps = {
+  gridDays: GridDay[];
+  availabilityGrid: AvailabilityGrid;
+  startIdx: number;
+  numCols: number;
 };
 
 export default function AvailabilityTable(props: AvailabilityTableProps) {
-  const { participant, availabilities, days, setAvailabilities } = props;
+  const eventStore = useContext(EventContext);
+  if (!eventStore) throw new Error("EventSignInForm must be used within Event");
+  const {
+    event,
+    participant,
+    timezone,
+    days,
+    availabilities,
+    addAvailability,
+    removeAvailability,
+    replaceAvailability,
+  } = useStore(eventStore);
+
+  const { availabilityGrid, gridDays, startIdx, numCols } = props;
 
   const [mousePressed, setMousePressed] = React.useState(false);
 
@@ -79,17 +70,39 @@ export default function AvailabilityTable(props: AvailabilityTableProps) {
     setMousePressed(false);
   });
 
-  window.addEventListener("mousedown", (e) => {
+  window.addEventListener("mousedown", () => {
     setMousePressed(true);
   });
 
+  const sortedAvailabilityGridTimes = Object.keys(availabilityGrid).sort(
+    (t1, t2) => {
+      const [h1, m1] = t1.split(":");
+      const [h2, m2] = t2.split(":");
+
+      return Number(h1) * 60 + Number(m1) - (Number(h2) * 60 + Number(m2));
+    },
+  );
+
+  const paddedAvailabilityGridTimes: string[] = [];
+  sortedAvailabilityGridTimes.forEach((time, i) => {
+    paddedAvailabilityGridTimes.push(time);
+
+    if (i === sortedAvailabilityGridTimes.length - 1) {
+      return;
+    }
+
+    const dt = DateTime.fromFormat(time, "HH:mm").plus({ minutes: 30 });
+    const nextTime = sortedAvailabilityGridTimes[i + 1];
+    const nextDt = DateTime.fromFormat(nextTime!, "HH:mm");
+
+    if (dt < nextDt) {
+      paddedAvailabilityGridTimes.push("bubble");
+    }
+  });
+
   return (
-    <Table
-      style={{
-        userSelect: "none",
-      }}
-    >
-      <TableHeader>
+    <Table>
+      <TableHeader className="select-none">
         <TableRow className="hover:bg-transparent">
           <TableHead
             className="text-center"
@@ -99,138 +112,375 @@ export default function AvailabilityTable(props: AvailabilityTableProps) {
           >
             Time
           </TableHead>
-          {days.map((day) => (
-            <TableHead key={day.id} className="text-center">
-              {day.type === "date"
-                ? new Date(day.date!)
-                    .toLocaleDateString("en-US", {
-                      weekday: "short",
-                      month: "short",
-                      day: "numeric",
-                    })
-                    .toUpperCase()
-                : day.day!.toUpperCase()[0] + day.day!.slice(1, 3)}
+          {gridDays.slice(startIdx, startIdx + numCols).map((day) => (
+            <TableHead
+              key={day.date.toString()}
+              className="text-center"
+              style={{
+                width:
+                  80 / gridDays.slice(startIdx, startIdx + numCols).length +
+                  "%",
+              }}
+            >
+              {event.type === "dates"
+                ? day.date.toLocaleString({
+                    weekday: "short",
+                    day: "numeric",
+                    month: "short",
+                  })
+                : day.date.toLocaleString({
+                    weekday: "long",
+                  })}
             </TableHead>
           ))}
         </TableRow>
       </TableHeader>
       <TableBody>
-        {constructSlotGrid(days).map((slot) => (
-          <TableRow key={slot.id} className="text-center hover:bg-transparent">
-            <TableCell className="flex flex-row justify-center p-1 text-xs">
-              {slot.startTime.slice(0, 5)} - {slot.endTime.slice(0, 5)}
-            </TableCell>
-            {days.map((day) => {
-              const dayAvailabilities = availabilities.filter(
-                (availability) => availability.dayId === day.id,
-              );
-              const slotAvailability = dayAvailabilities.find(
-                (availability) => availability.startTime === slot.startTime,
-              );
+        {paddedAvailabilityGridTimes.map((time, i) => {
+          if (time === "bubble") {
+            return <TableRow key={time + i} className="h-5" />;
+          }
 
-              if (!slotAvailability) {
-                return (
-                  <TableCell
-                    key={day.id}
-                    className="cursor-pointer p-1 hover:bg-slate-800"
-                    onMouseEnter={() => {
-                      if (mousePressed) {
-                        const newAvailability: InsertAvailability = {
-                          participantId: participant.id,
-                          dayId: day.id,
-                          startTime: slot.startTime,
-                          endTime: slot.endTime,
-                        };
+          return (
+            <TableRow key={time} className="text-center hover:bg-transparent">
+              <TableCell className="pointer-events-none my-auto flex select-none flex-row justify-center p-1 text-xs">
+                {time +
+                  " - " +
+                  DateTime.fromISO(time)
+                    .plus({ minutes: 30 })
+                    .toFormat("HH:mm")}
+              </TableCell>
+              {Object.keys(availabilityGrid[time]!)
+                .sort(
+                  (a, b) =>
+                    DateTime.fromISO(a).toMillis() -
+                    DateTime.fromISO(b).toMillis(),
+                )
+                .slice(startIdx, startIdx + numCols)
+                .map((day) => {
+                  const slot = availabilityGrid[time]![day]!;
 
-                        createAvailability(newAvailability).then(
-                          (createdAvailability) => {
-                            setAvailabilities((prev) => {
-                              return [...prev, createdAvailability];
-                            });
-                          },
-                        );
+                  if (!slot.valid) {
+                    return (
+                      <TableCell
+                        key={time + day}
+                        className={
+                          "cursor-not-allowed bg-gray-100 p-1 dark:bg-slate-900"
+                        }
+                      />
+                    );
+                  }
+
+                  const participantAvailability = slot.availabilities.find(
+                    (a) => a.participant.id === participant!.id,
+                  );
+
+                  return (
+                    <TableCell
+                      key={time + day}
+                      className={
+                        participantAvailability
+                          ? "cursor-pointer bg-green-400 p-1 hover:bg-green-300"
+                          : "cursor-pointer p-1 hover:bg-slate-800"
                       }
-                    }}
-                    onClick={async () => {
-                      const newAvailability: InsertAvailability = {
-                        participantId: participant.id,
-                        dayId: day.id,
-                        startTime: slot.startTime,
-                        endTime: slot.endTime,
-                      };
+                      onMouseEnter={async () => {
+                        if (mousePressed) {
+                          if (!participantAvailability) {
+                            const datetime = DateTime.fromObject({
+                              day: Number(day.split("-")[2]),
+                              month: Number(day.split("-")[1]),
+                              year: Number(day.split("-")[0]),
+                              hour: Number(time.split(":")[0]),
+                              minute: Number(time.split(":")[1]),
+                            });
+                            const serverDatetime = datetime.plus({
+                              hours:
+                                (tz(event.timezone).utcOffset() -
+                                  tz(timezone).utcOffset()) /
+                                60,
+                            });
 
-                      const createdAvailability =
-                        await createAvailability(newAvailability);
+                            const eventDay = days.find((d) => {
+                              const dt =
+                                d.type === "date"
+                                  ? DateTime.fromJSDate(new Date(d.date!))
+                                  : DateTime.fromObject({
+                                      weekday: weekDayToNumber(d.day!),
+                                    });
 
-                      setAvailabilities((prev) => {
-                        return [...prev, createdAvailability];
-                      });
-                    }}
-                    onMouseDown={(e) => {
-                      e.preventDefault();
+                              return dt.hasSame(serverDatetime, "day");
+                            });
 
-                      const newAvailability: InsertAvailability = {
-                        participantId: participant.id,
-                        dayId: day.id,
-                        startTime: slot.startTime,
-                        endTime: slot.endTime,
-                      };
+                            const newAvailability: InsertAvailability = {
+                              participantId: participant!.id,
+                              dayId: eventDay!.id,
+                              startTime: serverDatetime.toFormat("HH:mm"),
+                              endTime: serverDatetime
+                                .plus({ minutes: 30 })
+                                .toFormat("HH:mm"),
+                            };
 
-                      createAvailability(newAvailability).then(
-                        (createdAvailability) => {
-                          setAvailabilities((prev) => {
-                            return [...prev, createdAvailability];
+                            // find min id in availabilities
+                            const nextTempId =
+                              availabilities.reduce(
+                                (minId, availability) =>
+                                  availability.id < minId
+                                    ? availability.id
+                                    : minId,
+                                0,
+                              ) - 1;
+                            addAvailability({
+                              id: nextTempId,
+                              startTime: serverDatetime.toFormat("HH:mm"),
+                              endTime: serverDatetime
+                                .plus({ minutes: 30 })
+                                .toFormat("HH:mm"),
+                              day: eventDay!,
+                              participant: participant!,
+                            });
+
+                            const createdAvailability =
+                              await createAvailability(newAvailability);
+
+                            const newPopulatedAvailability: PopulatedAvailability =
+                              {
+                                id: createdAvailability.id,
+                                startTime: createdAvailability.startTime,
+                                endTime: createdAvailability.endTime,
+                                day: eventDay!,
+                                participant: participant!,
+                              };
+
+                            replaceAvailability(
+                              nextTempId,
+                              newPopulatedAvailability,
+                            );
+                          } else {
+                            removeAvailability(participantAvailability.id);
+
+                            try {
+                              await deleteAvailabilitySlot(
+                                participantAvailability.id,
+                              );
+                            } catch (error) {
+                              console.error(error);
+                              addAvailability({
+                                id: participantAvailability.id,
+                                startTime:
+                                  participantAvailability.startTime.hour +
+                                  ":" +
+                                  participantAvailability.startTime.minute,
+                                endTime:
+                                  participantAvailability.endTime.hour +
+                                  ":" +
+                                  participantAvailability.endTime.minute,
+                                day: participantAvailability.day,
+                                participant: participant!,
+                              });
+                            }
+                          }
+                        }
+                      }}
+                      onClick={async () => {
+                        if (!participantAvailability) {
+                          const datetime = DateTime.fromObject({
+                            day: Number(day.split("-")[2]),
+                            month: Number(day.split("-")[1]),
+                            year: Number(day.split("-")[0]),
+                            hour: Number(time.split(":")[0]),
+                            minute: Number(time.split(":")[1]),
                           });
-                        },
-                      );
-                    }}
-                  ></TableCell>
-                );
-              }
+                          const serverDatetime = datetime.plus({
+                            hours:
+                              (tz(event.timezone).utcOffset() -
+                                tz(timezone).utcOffset()) /
+                              60,
+                          });
 
-              return (
-                <TableCell
-                  key={day.id}
-                  className="cursor-pointer bg-green-400 p-1 hover:bg-green-300"
-                  onMouseEnter={async (e) => {
-                    if (mousePressed) {
-                      await deleteAvailabilitySlot(slotAvailability.id);
+                          const eventDay = days.find((d) => {
+                            const dt =
+                              d.type === "date"
+                                ? DateTime.fromJSDate(new Date(d.date!))
+                                : DateTime.fromObject({
+                                    weekday: weekDayToNumber(d.day!),
+                                  });
 
-                      setAvailabilities((prev) => {
-                        return prev.filter(
-                          (availability) =>
-                            availability.id !== slotAvailability.id,
-                        );
-                      });
-                    }
-                  }}
-                  onClick={async () => {
-                    await deleteAvailabilitySlot(slotAvailability.id);
+                            return dt.hasSame(serverDatetime, "day");
+                          });
 
-                    setAvailabilities((prev) => {
-                      return prev.filter(
-                        (availability) =>
-                          availability.id !== slotAvailability.id,
-                      );
-                    });
-                  }}
-                  onMouseDown={async (e) => {
-                    e.preventDefault();
+                          const newAvailability: InsertAvailability = {
+                            participantId: participant!.id,
+                            dayId: eventDay!.id,
+                            startTime: serverDatetime.toFormat("HH:mm"),
+                            endTime: serverDatetime
+                              .plus({ minutes: 30 })
+                              .toFormat("HH:mm"),
+                          };
 
-                    await deleteAvailabilitySlot(slotAvailability.id);
+                          // find min id in availabilities
+                          const nextTempId =
+                            availabilities.reduce(
+                              (minId, availability) =>
+                                availability.id < minId
+                                  ? availability.id
+                                  : minId,
+                              0,
+                            ) - 1;
+                          addAvailability({
+                            id: nextTempId,
+                            startTime: serverDatetime.toFormat("HH:mm"),
+                            endTime: serverDatetime
+                              .plus({ minutes: 30 })
+                              .toFormat("HH:mm"),
+                            day: eventDay!,
+                            participant: participant!,
+                          });
 
-                    setAvailabilities((prev) => {
-                      return prev.filter(
-                        (availability) =>
-                          availability.id !== slotAvailability.id,
-                      );
-                    });
-                  }}
-                ></TableCell>
-              );
-            })}
-          </TableRow>
-        ))}
+                          const createdAvailability =
+                            await createAvailability(newAvailability);
+
+                          const newPopulatedAvailability: PopulatedAvailability =
+                            {
+                              id: createdAvailability.id,
+                              startTime: createdAvailability.startTime,
+                              endTime: createdAvailability.endTime,
+                              day: eventDay!,
+                              participant: participant!,
+                            };
+
+                          replaceAvailability(
+                            nextTempId,
+                            newPopulatedAvailability,
+                          );
+                        } else {
+                          removeAvailability(participantAvailability.id);
+
+                          try {
+                            await deleteAvailabilitySlot(
+                              participantAvailability.id,
+                            );
+                          } catch (error) {
+                            console.error(error);
+                            addAvailability({
+                              id: participantAvailability.id,
+                              startTime:
+                                participantAvailability.startTime.hour +
+                                ":" +
+                                participantAvailability.startTime.minute,
+                              endTime:
+                                participantAvailability.endTime.hour +
+                                ":" +
+                                participantAvailability.endTime.minute,
+                              day: participantAvailability.day,
+                              participant: participant!,
+                            });
+                          }
+                        }
+                      }}
+                      // onMouseDown={async (e) => {
+                      //   e.preventDefault();
+
+                      //   if (!participantAvailability) {
+                      //     const datetime = DateTime.fromObject({
+                      //       day: Number(day.split("-")[2]),
+                      //       month: Number(day.split("-")[1]),
+                      //       year: Number(day.split("-")[0]),
+                      //       hour: Number(time.split(":")[0]),
+                      //       minute: Number(time.split(":")[1]),
+                      //     });
+                      //     const serverDatetime = datetime.plus({
+                      //       hours:
+                      //         (tz(event.timezone).utcOffset() -
+                      //           tz(timezone).utcOffset()) /
+                      //         60,
+                      //     });
+
+                      //     const eventDay = days.find((d) => {
+                      //       const dt =
+                      //         d.type === "date"
+                      //           ? DateTime.fromJSDate(new Date(d.date!))
+                      //           : DateTime.fromObject({
+                      //               weekday: weekDayToNumber(d.day!),
+                      //             });
+
+                      //       return dt.hasSame(serverDatetime, "day");
+                      //     });
+
+                      //     const newAvailability: InsertAvailability = {
+                      //       participantId: participant!.id,
+                      //       dayId: eventDay!.id,
+                      //       startTime: serverDatetime.toFormat("HH:mm"),
+                      //       endTime: serverDatetime
+                      //         .plus({ minutes: 30 })
+                      //         .toFormat("HH:mm"),
+                      //     };
+
+                      //     // find min id in availabilities
+                      //     const nextTempId =
+                      //       availabilities.reduce(
+                      //         (minId, availability) =>
+                      //           availability.id < minId
+                      //             ? availability.id
+                      //             : minId,
+                      //         0,
+                      //       ) - 1;
+                      //     addAvailability({
+                      //       id: nextTempId,
+                      //       startTime: serverDatetime.toFormat("HH:mm"),
+                      //       endTime: serverDatetime
+                      //         .plus({ minutes: 30 })
+                      //         .toFormat("HH:mm"),
+                      //       day: eventDay!,
+                      //       participant: participant!,
+                      //     });
+
+                      //     const createdAvailability =
+                      //       await createAvailability(newAvailability);
+
+                      //     const newPopulatedAvailability: PopulatedAvailability =
+                      //       {
+                      //         id: createdAvailability.id,
+                      //         startTime: createdAvailability.startTime,
+                      //         endTime: createdAvailability.endTime,
+                      //         day: eventDay!,
+                      //         participant: participant!,
+                      //       };
+
+                      //     replaceAvailability(
+                      //       nextTempId,
+                      //       newPopulatedAvailability,
+                      //     );
+                      //   } else {
+                      //     removeAvailability(participantAvailability.id);
+
+                      //     try {
+                      //       await deleteAvailabilitySlot(
+                      //         participantAvailability.id,
+                      //       );
+                      //     } catch (error) {
+                      //       console.error(error);
+                      //       addAvailability({
+                      //         id: participantAvailability.id,
+                      //         startTime:
+                      //           participantAvailability.startTime.hour +
+                      //           ":" +
+                      //           participantAvailability.startTime.minute,
+                      //         endTime:
+                      //           participantAvailability.endTime.hour +
+                      //           ":" +
+                      //           participantAvailability.endTime.minute,
+                      //         day: participantAvailability.day,
+                      //         participant: participant!,
+                      //       });
+                      //     }
+                      //   }
+                      // }}
+                    />
+                  );
+                })}
+            </TableRow>
+          );
+        })}
       </TableBody>
     </Table>
   );
