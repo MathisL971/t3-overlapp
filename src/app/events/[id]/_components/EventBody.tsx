@@ -182,26 +182,27 @@ const buildAvailabilityGrid = (
         year: Number(day.split("-")[0]),
       });
 
-      if (!grid[time]) {
-        throw new Error("Invalid window");
-      }
-
       if (!isValidWindow(d, gridDay!.windows)) {
-        grid[time][day] = {
+        const slot = {
           valid: false,
           availabilities: [],
         };
+
+        grid[time]![day] = slot;
+
         continue;
       }
 
       const availabilities = availabilitiesByDay[day];
 
-      grid[time][day] = {
+      const slot = {
         valid: true,
         availabilities: availabilities!.filter((availability) => {
           return availability.startTime.toFormat("HH:mm") === time;
         }),
       };
+
+      grid[time]![day] = slot;
     }
 
     earliestDayStartTime = earliestDayStartTime.plus({
