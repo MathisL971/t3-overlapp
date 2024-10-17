@@ -182,6 +182,10 @@ const buildAvailabilityGrid = (
         year: Number(day.split("-")[0]),
       });
 
+      if (!grid[time]) {
+        throw new Error("Invalid window");
+      }
+
       if (!isValidWindow(d, gridDay!.windows)) {
         grid[time][day] = {
           valid: false,
